@@ -1,0 +1,103 @@
+version: "3"
+
+# -----------------------------------------------------------------------------
+# Minecraft Server Stack
+#
+# Core server: itzg/minecraft-server (Java) — swap to itzg/minecraft-bedrock-server
+# if you want Bedrock instead (see docs/bedrock.md). Kept as the single source
+# of truth / process owner (no Crafty — see docs/decisions.md for why).
+#
+# Sidecars add the capabilities Crafty would have given us, a la carte:
+#   - rcon-web   -> web console (replaces `docker exec -it mc rcon-cli`)
+#   - mc-backup  -> scheduled, pruned backups
+#   - filebrowser-> web file manager + basic multi-user access
+#   - mc-monitor -> player count / status metrics (Prometheus-compatible)
+#   - playit     -> public tunnel (works behind CGNAT, no port forwarding)
+# -----------------------------------------------------------------------------
+
+services:
+  mc:
+    image: itzg/minecraft-server
+    container_name: mc
+    ports:
+      - "25565:25565"
+    environment:
+      EULA: "TRUE"
+      TYPE: "PAPER"
+      VERSION: "LATEST"
+      MEMORY: "4G"
+      MOTD: "My Dockerized Server"
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: "${RCON_PASSWORD}"
+      RCON_PORT: "25575"
+      ONLINE_MODE: "TRUE" # set to FALSE only for local/offline-account testing
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+  rcon-web:
+    image: itzg/rcon
+    container_name: rcon-web
+    ports:
+      - "4326:4326" # web UI
+      - "4327:4327" # websocket
+    environment:
+      RWA_ADMIN: "${RCON_WEB_ADMIN_USER}"
+      RWA_PASSWORD: "${RCON_WEB_ADMIN_PASSWORD}"
+    volumes:
+      - rcon-web-data:/opt/rcon-web-admin/db
+    restart: unless-stopped
+    depends_on:
+      - mc
+
+  mc-backup:
+    image: itzg/mc-backup
+    container_name: mc-backup
+    environment:
+      BACKUP_INTERVAL: "6h"
+      RCON_HOST: mc
+      RCON_PASSWORD: "${RCON_PASSWORD}"
+      PRUNE_BACKUPS_DAYS: "7"
+    volumes:
+      - ./data:/data:ro
+      - ./backups:/backups
+    restart: unless-stopped
+    depends_on:
+      - mc
+
+  filebrowser:
+    image: filebrowser/filebrowser
+    container_name: filebrowser
+    ports:
+      - "8081:80"
+    volumes:
+      - ./data:/srv
+      - filebrowser-db:/database
+    restart: unless-stopped
+
+  mc-monitor:
+    image: itzg/mc-monitor
+    container_name: mc-monitor
+    command: export --host=mc
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    depends_on:
+      - mc
+
+  # Public tunnel — works through CGNAT, no port forwarding needed.
+  # Comment out until you're done testing locally.
+  # playit:
+  #   image: ghcr.io/playit-cloud/playit-agent:1.0
+  #   container_name: playit
+  #   environment:
+  #     - SECRET_KEY=${PLAYIT_SECRET_KEY}
+  #   depends_on:
+  #     - mc
+  #   restart: unless-stopped
+
+volumes:
+  rcon-web-data:
+  filebrowser-db:

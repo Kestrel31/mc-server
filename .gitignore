@@ -1,0 +1,10 @@
+# Secrets / local overrides — DO NOT COMMIT
+.env
+
+# World data, backups, generated at runtime
+data/
+bedrock-data/
+backups/
+
+# OS junk
+.DS_Store
