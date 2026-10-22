@@ -65,6 +65,9 @@ services:
     container_name: filebrowser
     ports:
       - "8081:80"
+    environment:
+      FB_USERNAME: "${FILEBROWSER_USER}"
+      FB_PASSWORD: "${FILEBROWSER_PASSWORD}"
     volumes:
       - ../data:/srv
       - filebrowser-db:/database
@@ -73,7 +76,7 @@ services:
   mc-monitor:
     image: itzg/mc-monitor
     container_name: mc-monitor
-    command: export --host=mc
+    command: ["export-for-prometheus", "-servers", "mc:25565"]
     ports:
       - "8080:8080"
     restart: unless-stopped
