@@ -1,5 +1,6 @@
 # Secrets / local overrides — DO NOT COMMIT
 .env
+filebrowser.config.yaml
 
 # World data, backups, generated at runtime
 data/

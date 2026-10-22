@@ -32,16 +32,14 @@ services:
     stdin_open: true
 
   filebrowser:
-    image: filebrowser/filebrowser
+    image: gtstef/filebrowser # actively maintained "FileBrowser Quantum" fork
     container_name: filebrowser
     ports:
       - "8081:80"
-    environment:
-      FB_USERNAME: "${FILEBROWSER_USER}"
-      FB_PASSWORD: "${FILEBROWSER_PASSWORD}"
     volumes:
       - ../bedrock-data:/srv
-      - filebrowser-db:/database
+      - filebrowser-db:/home/filebrowser/data
+      - ../filebrowser.config.yaml:/home/filebrowser/config.yaml:ro
     restart: unless-stopped
 
 volumes:

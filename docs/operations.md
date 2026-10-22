@@ -3,7 +3,7 @@
 Day-2 tasks: changing versions, updating containers, backups, troubleshooting
 auth, and sidecar-specific notes.
 
-## Known issues already fixed in this repo's compose files
+## Known issues already fixed in this repo's history
 
 A few sidecar config mistakes were made and corrected during initial setup
 — documenting them here since the symptoms are easy to hit again if you
@@ -22,54 +22,21 @@ fork/modify this stack:
    docker run --rm itzg/mc-monitor:latest help export-for-prometheus
    ```
 
-2. **RCON Web Admin showing no servers / `127.0.0.1:25575 connection
-   failed`** — two stacked mistakes:
-   - `RWA_ADMIN` was being used to set the *username*, but it's actually a
-     `TRUE`/`FALSE` flag for "make this user an admin." The username var is
-     `RWA_USERNAME`.
-   - The RCON *connection* itself was never configured at all —
-     `RWA_ADMIN`/`RWA_PASSWORD` only configure the web panel's own login,
-     not the connection to `mc`. `RWA_ENV: "TRUE"` must be set to enable
-     env-var config, plus `RWA_RCON_HOST`, `RWA_RCON_PORT`, and
-     `RWA_RCON_PASSWORD` to actually point it at the Minecraft server.
-   - Separately: even with those set, the host must be the **Docker
-     service name** (`mc`), never `127.0.0.1` or `localhost` — those
-     resolve to the `rcon-web` container itself, not `mc`, since they're
-     separate containers. `mc-backup`'s `RCON_HOST: mc` already did this
-     correctly; `rcon-web` didn't.
+2. **RCON Web Admin (`itzg/rcon`) showing no servers /
+   `127.0.0.1:25575 connection failed`** — this sidecar had several
+   stacked config mistakes (wrong env var for username, missing
+   `RWA_ENV`/`RWA_RCON_*` vars, wrong host). Rather than keep layering
+   fixes onto a sidecar that wasn't earning its place, it was **removed
+   entirely** — see [`decisions.md`](decisions.md). Console access is now
+   via `docker exec`/`docker attach` directly (see below). `ENABLE_RCON`
+   stays on for `mc` itself since `mc-backup` still needs it internally.
 
-   Current (correct) config:
-   ```yaml
-   environment:
-     RWA_ENV: "TRUE"
-     RWA_USERNAME: "${RCON_WEB_ADMIN_USER}"
-     RWA_PASSWORD: "${RCON_WEB_ADMIN_PASSWORD}"
-     RWA_ADMIN: "TRUE"
-     RWA_GAME: "minecraft"
-     RWA_SERVER_NAME: "mc"
-     RWA_RCON_HOST: "mc"
-     RWA_RCON_PORT: "25575"
-     RWA_RCON_PASSWORD: "${RCON_PASSWORD}"
-   ```
-   Full env var reference: the [rcon-web-admin README](https://github.com/rcon-web-admin/rcon-web-admin#environment-variables)
-   (this is the actively maintained fork; the original by @brainfoolong is
-   no longer maintained).
-
-3. **FileBrowser credentials** — never explicitly set, so it was silently
-   falling back to its built-in default (`admin` / `admin`). Now set
-   explicitly via `.env`:
-   ```yaml
-   environment:
-     FB_USERNAME: "${FILEBROWSER_USER}"
-     FB_PASSWORD: "${FILEBROWSER_PASSWORD}"
-   ```
-   **⚠️ Also: `filebrowser/filebrowser` is archived/unmaintained** (no
-   further releases or security fixes as of its archive date). This repo
-   still references it since it's a drop-in simple option, but consider
-   swapping to the actively maintained fork
-   [`gtsteffaniak/filebrowser`](https://github.com/gtsteffaniak/filebrowser)
-   (same core functionality, different image name) if you want ongoing
-   security patches.
+3. **FileBrowser was `filebrowser/filebrowser`, which is now archived**
+   (no further releases or security fixes). Replaced with the actively
+   maintained fork **`gtstef/filebrowser`** ("FileBrowser Quantum",
+   `github.com/gtsteffaniak/filebrowser`). This fork configures via a
+   mounted `config.yaml` instead of `FB_USERNAME`/`FB_PASSWORD` env vars
+   — see the File browser section below for setup.
 
 4. **Running `docker compose` from inside `compose/` instead of the repo
    root** — since the compose files use relative volume paths like
@@ -134,7 +101,7 @@ docker compose -f compose/docker-compose.java.yml logs -f mc
 ```
 
 `docker compose down -v` also removes named volumes — **do not** run this
-casually; it would wipe sidecar state like `rcon-web-data`. Your world is
+casually; it would wipe sidecar state like `filebrowser-db`. Your world is
 safe either way since it's on the external bind mount (`./data` or
 `./bedrock-data`), not a Docker-managed volume.
 
@@ -152,10 +119,10 @@ docker compose -f compose/docker-compose.java.playit.yml up -d
 
 ## Backups
 
-**Java**: handled automatically by the `mc-backup` sidecar
-(`BACKUP_INTERVAL: "6h"`, pruned after `PRUNE_BACKUPS_DAYS: "7"`). It talks
-to `mc` over RCON to safely pause world-saving during the backup, then
-archives to `./backups`.
+**Java**: handled automatically by the `mc-backup` sidecar —
+`BACKUP_INTERVAL: "24h"` (daily), pruned after `PRUNE_BACKUPS_DAYS: "7"`.
+It talks to `mc` over RCON to safely pause world-saving during the
+backup, then archives to `./backups`.
 
 To force a backup immediately:
 ```bash
@@ -174,39 +141,53 @@ that same command periodically.
 Always take a manual backup before a version change or any risky config
 edit, even on Java where the schedule covers routine cases.
 
-## Web console (RCON Web Admin) — Java only
+## Console access (no web console)
 
-`http://localhost:4326` — login with `RCON_WEB_ADMIN_USER` /
-`RCON_WEB_ADMIN_PASSWORD` from `.env`. Gives live console + command input
-without `docker exec`/`docker attach`.
+RCON Web Admin was removed (see `decisions.md`) — use `docker exec`/
+`docker attach` directly instead:
 
-Common commands to run from there:
+**Java:**
+```bash
+docker exec mc rcon-cli op PlayerUsername
+docker exec mc rcon-cli whitelist add PlayerUsername
+docker attach mc          # live console; Ctrl+P, Ctrl+Q to detach without stopping the server
+docker compose -f compose/docker-compose.java.yml logs -f mc
 ```
-op PlayerUsername              # grant operator/admin in-game
-whitelist add PlayerUsername   # allow a player to join when whitelist is on
-```
 
-For Bedrock, there's no web console — use:
+**Bedrock:**
 ```bash
 docker exec -it bedrock send-command op PlayerUsername
 docker logs -f bedrock
 ```
 
-## File browser (both editions)
+## File browser
 
-`http://localhost:8081` — browse/edit `server.properties`, drop in plugin
-jars (Java) or inspect world files, all against the same bind mount the
-server uses. Supports multiple accounts with per-user permission scoping
-if you want to give someone limited access without sharing the RCON/web
-console credentials.
+Config lives in `filebrowser.config.yaml` (mounted read-only into the
+container), not environment variables — set on first setup:
+```bash
+cp filebrowser.config.yaml.example filebrowser.config.yaml
+# edit filebrowser.config.yaml — set a real auth.adminPassword before first run
+```
 
-## Player count / status metrics — Java only
+Then `http://localhost:8081` — login with `auth.adminUsername` /
+`auth.adminPassword` from that file. To change the password later without
+editing the file and restarting:
+```bash
+docker exec filebrowser filebrowser user set admin <new-password>
+```
+
+Browse/edit `server.properties`, drop in plugin jars (Java), or inspect
+world files, all against the same bind mount the server uses.
+
+## Player count / status metrics
 
 `mc-monitor` exposes a Prometheus-scrapeable endpoint at
 `http://localhost:8080`. Pair with Prometheus + Grafana if you want
 historical graphs (player count over time, uptime) — not included in this
 repo by default to keep the base stack lean; add as a further sidecar if
-wanted. No equivalent included for Bedrock.
+wanted. Wired in for Java only by default; the same tool works for
+Bedrock too (`status-bedrock` / `-bedrock-servers`) if you want to add it
+to `compose/docker-compose.bedrock.yml` yourself.
 
 ## "Failed to verify username" (Java)
 
@@ -228,26 +209,3 @@ For local/private testing only, you can bypass this by setting
 (anyone can log in as any username, including impersonating an op).
 **Never** leave this on once the server is exposed publicly via playit.gg
 unless it's also locked down with a whitelist.
-
-## Crafty, if reintroduced later
-
-If a web panel is ever added back purely for console/backup/file-browsing
-convenience (not as the process owner — see
-[`decisions.md`](decisions.md)):
-
-- First boot generates a default admin account; check the log line it
-  prints, or read the credentials file directly:
-  ```bash
-  docker exec -it crafty cat /crafty/app/config/default-creds.txt
-  ```
-  Change the password immediately after first login.
-- To create additional panel users: **Panel Config → Users → Add User**,
-  assign roles/permissions per-server rather than blanket admin access.
-- To add an in-game player/op, that's unrelated to Crafty accounts — use
-  its **Console** tab and run standard server commands (`op`, `whitelist
-  add`), same as the RCON Web Admin approach above.
-- If Crafty doesn't show an imported server in its dashboard, remember it
-  tracks servers in its own database, not by scanning folder contents —
-  it must be explicitly created or imported through its UI, and even then
-  Start/Stop/Console won't control a process it didn't spawn itself. This
-  is exactly the limitation documented in `decisions.md`.

@@ -58,3 +58,21 @@ servers for a non-technical group, wanting one login for everything, not
 caring about git-tracked config — Option B (Crafty fully owns the server)
 is a perfectly reasonable choice. It's a different tradeoff, not strictly a
 worse tool. This repo just optimizes for the opposite priority.
+
+## Why RCON Web Admin (`itzg/rcon`) was removed
+
+`rcon-web` was originally added as the web-console sidecar. It never
+worked correctly even after fixing the config (see `docs/operations.md`'s
+"Known issues" section for the specifics — wrong env var for username,
+missing `RWA_ENV`/`RWA_RCON_*` vars, wrong host), and even once fixed, it
+stayed a thin layer most of the value of which (console access, player
+list) is already covered by:
+- `docker attach mc` / `docker exec mc rcon-cli <command>` for direct
+  console access, or
+- `docker exec -it bedrock send-command <command>` on Bedrock.
+
+Given the extra moving part wasn't earning its keep, it was dropped
+entirely rather than kept half-used. `ENABLE_RCON` stays on for `mc`
+itself since `mc-backup` still depends on it internally (to pause
+world-saving during backups) — RCON just no longer has any UI in front of
+it.

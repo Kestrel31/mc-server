@@ -1,9 +1,9 @@
 # mc-server
 
 A self-hosted Minecraft server stack running in Docker, with a modular set of
-sidecar containers for console access, backups, file management, and basic
-monitoring — plus an optional public-access path that works behind CGNAT (no
-port forwarding, no static IP) via [playit.gg](https://playit.gg).
+sidecar containers for backups, file management, and basic monitoring —
+plus an optional public-access path that works behind CGNAT (no port
+forwarding, no static IP) via [playit.gg](https://playit.gg).
 
 ## Why this structure
 
@@ -14,17 +14,21 @@ start/stop/console controls don't actually control the real process, and the
 server never reliably showed up in its dashboard. See
 [`docs/decisions.md`](docs/decisions.md) for the full writeup.
 
+A web console sidecar (`itzg/rcon` / RCON Web Admin) was also tried and
+later removed — it added a config surface that never justified itself once
+set up correctly. See [`docs/decisions.md`](docs/decisions.md).
+
 Instead, this repo uses the **`itzg` Docker ecosystem** as the single source
 of truth for the running server (fully reproducible from a compose file +
 `.env`), with small, independent sidecars bolted on for the specific
-capabilities a panel like Crafty would otherwise provide:
+capabilities that still matter:
 
 | Capability | Tool |
 |---|---|
 | Server itself | [`itzg/minecraft-server`](https://github.com/itzg/docker-minecraft-server) (Java) or [`itzg/minecraft-bedrock-server`](https://github.com/itzg/docker-minecraft-bedrock-server) |
-| Web console | [`itzg/rcon`](https://github.com/itzg/docker-rcon) (RCON Web Admin) — Java only, requires RCON (see note below) |
-| Scheduled backups | [`itzg/mc-backup`](https://github.com/itzg/docker-mc-backup) — Java only, requires RCON (see note below) |
-| Web file manager | [`filebrowser/filebrowser`](https://github.com/filebrowser/filebrowser) — ⚠️ archived/unmaintained, see note below |
+| Console access | `docker attach mc` / `docker exec mc rcon-cli <cmd>` (Java), `docker exec bedrock send-command <cmd>` (Bedrock) — no web console; see `docs/decisions.md` |
+| Scheduled backups (daily) | [`itzg/mc-backup`](https://github.com/itzg/docker-mc-backup) — Java only, needs RCON internally (see note below) |
+| Web file manager | [`gtsteffaniak/filebrowser`](https://github.com/gtsteffaniak/filebrowser) ("FileBrowser Quantum" — actively maintained fork; replaces the now-archived `filebrowser/filebrowser`) |
 | Player count / status metrics | [`itzg/mc-monitor`](https://github.com/itzg/mc-monitor) — works for both editions (status ping only, no RCON needed) |
 | Public access behind CGNAT | [`playit.gg`](https://playit.gg) agent |
 
@@ -41,29 +45,28 @@ its own file under [`compose/`](compose/):
 | `compose/docker-compose.bedrock.yml` | Bedrock | No (local/LAN only) |
 | `compose/docker-compose.bedrock.playit.yml` | Bedrock | Yes (playit.gg) |
 
-**Why Bedrock's files are leaner (no rcon-web, mc-backup, mc-monitor):**
-those three sidecars all depend on **RCON**, which the Bedrock server does
-not support (Bedrock has no RCON protocol implementation). Bedrock's
-compose files include only `bedrock` + `filebrowser`. See
-[`docs/bedrock.md`](docs/bedrock.md) for Bedrock-specific config, the
-UDP/RakNet constraint, and why that also shapes the networking options.
-
-Run whichever matches your situation:
-```bash
-cp .env.example .env   # fill in real values first — see below
-docker compose -f compose/docker-compose.java.yml up -d
-# or
-docker compose -f compose/docker-compose.bedrock.playit.yml up -d
-```
+**Why Bedrock's files are leaner (no mc-backup, mc-monitor by default):**
+`mc-backup` depends on **RCON**, which the Bedrock server does not support
+(Bedrock has no RCON protocol implementation) — so Bedrock's compose files
+include only `bedrock` + `filebrowser`. `mc-monitor` *could* be added for
+Bedrock too (it only does a status ping, no RCON needed) but isn't wired
+in by default. See [`docs/bedrock.md`](docs/bedrock.md) for Bedrock-specific
+config, the UDP/RakNet constraint, and why that also shapes the networking
+options.
 
 ## Quick start
 
 ```bash
 git clone <this-repo>
 cd mc-server
+
 cp .env.example .env
-# edit .env — set real passwords; leave PLAYIT_SECRET_KEY blank unless
-# using one of the *.playit.yml files
+# edit .env — set a real RCON_PASSWORD; leave PLAYIT_SECRET_KEY blank
+# unless using one of the *.playit.yml files
+
+cp filebrowser.config.yaml.example filebrowser.config.yaml
+# edit filebrowser.config.yaml — set a real auth.adminPassword
+
 docker compose -f compose/docker-compose.java.yml up -d
 ```
 
@@ -71,11 +74,12 @@ docker compose -f compose/docker-compose.java.yml up -d
   Server → `localhost:25565` (or your LAN IP from another device). For
   Bedrock, use the mobile/console app → Servers → Add Server →
   `<LAN IP>:19132`.
-- **Web console (Java only):** `http://localhost:4326` (RCON Web Admin —
-  login from `.env`).
-- **File browser:** `http://localhost:8081`.
-- **Player/status metrics (Java only):** `http://localhost:8080`
-  (Prometheus-scrapeable).
+- **File browser:** `http://localhost:8081` — login with the username/
+  password set in `filebrowser.config.yaml`.
+- **Player/status metrics:** `http://localhost:8080` (Prometheus-scrapeable).
+- **Console access:** `docker exec mc rcon-cli <command>` (Java) or
+  `docker exec bedrock send-command <command>` (Bedrock) — see
+  [`docs/operations.md`](docs/operations.md).
 
 ## Going public (CGNAT-friendly)
 
@@ -105,13 +109,14 @@ mc-server/
 │   ├── docker-compose.java.playit.yml     # Java, + playit.gg
 │   ├── docker-compose.bedrock.yml         # Bedrock, local only
 │   └── docker-compose.bedrock.playit.yml  # Bedrock, + playit.gg
-├── .env.example             # copy to .env, fill in real secrets
+├── .env.example                      # copy to .env, fill in real secrets
+├── filebrowser.config.yaml.example   # copy to filebrowser.config.yaml, set a real password
 ├── .gitignore
 ├── docs/
-│   ├── decisions.md          # why Crafty was dropped, why this structure
+│   ├── decisions.md          # why Crafty and RCON Web Admin were dropped
 │   ├── bedrock.md             # Bedrock-specific config + RCON/UDP caveats
 │   ├── networking.md          # CGNAT, playit.gg, and the options ruled out
-│   └── operations.md          # day-2 ops: versions, backups, users, troubleshooting
+│   └── operations.md          # day-2 ops: versions, backups, console, troubleshooting
 ├── data/                     # (gitignored) Java world + server files
 ├── bedrock-data/             # (gitignored) Bedrock world + server files
 └── backups/                  # (gitignored) scheduled backup output

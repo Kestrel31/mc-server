@@ -4,7 +4,7 @@ version: "3"
 # Java Edition — LOCAL ONLY (no playit.gg)
 #
 # Use this for local/LAN testing, or if you don't need public/remote access.
-# Core server + sidecars (web console, backups, file browser, monitoring).
+# Core server + sidecars (daily backups, file browser, monitoring).
 # See /docs/operations.md and /docs/decisions.md for rationale.
 # -----------------------------------------------------------------------------
 
@@ -20,7 +20,7 @@ services:
       VERSION: "LATEST"
       MEMORY: "4G"
       MOTD: "My Dockerized Server"
-      ENABLE_RCON: "true"
+      ENABLE_RCON: "true" # still needed internally for mc-backup
       RCON_PASSWORD: "${RCON_PASSWORD}"
       RCON_PORT: "25575"
       ONLINE_MODE: "TRUE" # set to FALSE only for local/offline-account testing
@@ -30,33 +30,11 @@ services:
     tty: true
     stdin_open: true
 
-  rcon-web:
-    image: itzg/rcon
-    container_name: rcon-web
-    ports:
-      - "4326:4326" # web UI
-      - "4327:4327" # websocket
-    environment:
-      RWA_ENV: "TRUE" # required to enable env-var configuration at all
-      RWA_USERNAME: "${RCON_WEB_ADMIN_USER}"
-      RWA_PASSWORD: "${RCON_WEB_ADMIN_PASSWORD}"
-      RWA_ADMIN: "TRUE" # make this initial user an admin (not a username!)
-      RWA_GAME: "minecraft"
-      RWA_SERVER_NAME: "mc"
-      RWA_RCON_HOST: "mc" # Docker service name, NOT 127.0.0.1/localhost
-      RWA_RCON_PORT: "25575"
-      RWA_RCON_PASSWORD: "${RCON_PASSWORD}"
-    volumes:
-      - rcon-web-data:/opt/rcon-web-admin/db
-    restart: unless-stopped
-    depends_on:
-      - mc
-
   mc-backup:
     image: itzg/mc-backup
     container_name: mc-backup
     environment:
-      BACKUP_INTERVAL: "6h"
+      BACKUP_INTERVAL: "24h" # daily
       RCON_HOST: mc
       RCON_PASSWORD: "${RCON_PASSWORD}"
       PRUNE_BACKUPS_DAYS: "7"
@@ -68,16 +46,14 @@ services:
       - mc
 
   filebrowser:
-    image: filebrowser/filebrowser
+    image: gtstef/filebrowser # actively maintained "FileBrowser Quantum" fork
     container_name: filebrowser
     ports:
       - "8081:80"
-    environment:
-      FB_USERNAME: "${FILEBROWSER_USER}"
-      FB_PASSWORD: "${FILEBROWSER_PASSWORD}"
     volumes:
       - ../data:/srv
-      - filebrowser-db:/database
+      - filebrowser-db:/home/filebrowser/data
+      - ../filebrowser.config.yaml:/home/filebrowser/config.yaml:ro
     restart: unless-stopped
 
   mc-monitor:
@@ -91,5 +67,4 @@ services:
       - mc
 
 volumes:
-  rcon-web-data:
   filebrowser-db:

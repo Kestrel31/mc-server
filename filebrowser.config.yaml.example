@@ -1,0 +1,16 @@
+http:
+  port: 80
+  baseURL: "/"
+server:
+  sources:
+    - path: "/srv"
+auth:
+  adminUsername: "admin"
+  # Change this before first run, or change it later via:
+  #   docker exec filebrowser filebrowser user set admin <new-password>
+  adminPassword: "changeme-filebrowser"
+  methods:
+    password:
+      enabled: true
+      minLength: 5
+      signup: false
