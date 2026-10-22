@@ -71,6 +71,38 @@ the `filebrowser` sidecar at `http://localhost:8081`):
 - `allowlist.json` — whitelist entries
 - `worlds/<LEVEL_NAME>/` — the actual world data
 
+## Allowlist ("not invited to join")
+
+`allow-list` defaults to `true` in the Bedrock server — meaning **nobody
+can join unless explicitly listed**, confirmed by inspecting a fresh
+container's generated `server.properties`. This is almost certainly why a
+player sees "you are not invited to join" even though the server itself is
+reachable.
+
+All of this repo's Bedrock compose files set:
+```yaml
+environment:
+  ALLOW_LIST: "false"
+```
+which disables the allowlist entirely — anyone who reaches the server can
+join. Confirm it applied:
+```bash
+docker exec bedrock cat /data/server.properties | grep ^allow-list
+# should print: allow-list=false
+```
+
+**If you'd rather keep the allowlist on** and explicitly approve players
+instead, set `ALLOW_LIST: "true"` and add entries to `allowlist.json`
+(mounted at `./bedrock-data/allowlist.json`, editable via the `filebrowser`
+sidecar or directly):
+```json
+[
+  { "name": "PlayerGamertag", "ignoresPlayerLimit": false }
+]
+```
+Takes effect on next container restart — no need to touch `server.properties`
+directly for this one, just the JSON file.
+
 ## Important: Bedrock is UDP, not TCP — and that's not configurable
 
 Bedrock clients (Windows, console, mobile — all of them) use **RakNet**,
