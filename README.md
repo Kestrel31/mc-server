@@ -54,6 +54,16 @@ in by default. See [`docs/bedrock.md`](docs/bedrock.md) for Bedrock-specific
 config, the UDP/RakNet constraint, and why that also shapes the networking
 options.
 
+**The `*.playit.yml` files are intentionally minimal** — just the game
+server + the playit.gg agent, nothing else (no backups, no file browser,
+no monitoring). If you want sidecars *and* public access at the same
+time, run both files together against the same compose project; they
+share the same bind-mounted data, so nothing conflicts:
+```bash
+docker compose -f compose/docker-compose.java.yml \
+                -f compose/docker-compose.java.playit.yml up -d
+```
+
 ## Quick start
 
 ```bash

@@ -3,6 +3,13 @@ version: "3"
 # -----------------------------------------------------------------------------
 # Bedrock Edition — WITH playit.gg (public access, works behind CGNAT)
 #
+# Minimal: just the Bedrock server + the playit.gg tunnel agent. No
+# file-browser sidecar here — use docker-compose.bedrock.yml (without
+# playit.gg) if you want that, or run both files together (they share the
+# same ../bedrock-data bind mount) for sidecars AND public access at once:
+#   docker compose -f compose/docker-compose.bedrock.yml \
+#                   -f compose/docker-compose.bedrock.playit.yml up -d
+#
 # Bedrock is UDP-only at the protocol level (RakNet) — this is exactly the
 # scenario playit.gg is built for, and is required (not just convenient)
 # under CGNAT since port forwarding isn't possible at all. See
@@ -33,17 +40,6 @@ services:
     tty: true
     stdin_open: true
 
-  filebrowser:
-    image: gtstef/filebrowser # actively maintained "FileBrowser Quantum" fork
-    container_name: filebrowser
-    ports:
-      - "8081:80"
-    volumes:
-      - ../bedrock-data:/srv
-      - filebrowser-db:/home/filebrowser/data
-      - ../filebrowser.config.yaml:/home/filebrowser/config.yaml:ro
-    restart: unless-stopped
-
   # Public tunnel agent — outbound-only, works through CGNAT. This is the
   # only viable free option for public Bedrock UDP traffic (Cloudflare
   # Tunnel's UDP support is WARP-client-only; Cloudflare Spectrum supports
@@ -57,6 +53,3 @@ services:
     depends_on:
       - bedrock
     restart: unless-stopped
-
-volumes:
-  filebrowser-db:
