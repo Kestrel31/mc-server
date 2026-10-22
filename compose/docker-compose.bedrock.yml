@@ -15,6 +15,9 @@ services:
       - "19132:19132/udp"
     environment:
       EULA: "TRUE"
+      TRANSPORT: "raknet" # must be raknet (not the default nethernet) for
+                          # LAN discovery and third-party tunnels to work —
+                          # see docs/bedrock.md
       VERSION: "LATEST" # or a pinned version string, or "PREVIEW"
       GAMEMODE: "survival"
       DIFFICULTY: "normal"

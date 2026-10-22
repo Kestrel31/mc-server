@@ -24,6 +24,9 @@ services:
       - "19132:19132/udp"
     environment:
       EULA: "TRUE"
+      TRANSPORT: "raknet" # must be raknet, not the default nethernet, for
+                          # third-party tunnels (playit.gg) to reach the
+                          # server over plain UDP — see docs/bedrock.md
       VERSION: "LATEST"
       GAMEMODE: "survival"
       DIFFICULTY: "normal"

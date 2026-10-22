@@ -80,6 +80,38 @@ ecosystem that switches this to TCP. This has real consequences, and is
 exactly why there are separate `*.playit.yml` files rather than one
 networking approach for both editions:
 
+## NetherNet vs. RakNet — a second transport layer, and why it matters here
+
+Newer Bedrock server builds default to a transport called **NetherNet**
+instead of classic RakNet. NetherNet is Microsoft's newer transport, built
+around Xbox Live's own signaling/relay (used for the "Friends"/cross-device
+matchmaking flow) — it is **not** a plain UDP socket a third-party tunnel
+can forward. playit.gg (and effectively every other third-party
+tunnel/relay) can only forward classic RakNet traffic on a fixed UDP port.
+
+The `itzg/minecraft-bedrock-server` image's current default is
+`transport=nethernet`, confirmed by inspecting a fresh container's
+generated `server.properties`. All four of this repo's compose files
+explicitly set:
+```yaml
+environment:
+  TRANSPORT: "raknet"
+```
+to override that default. Without this, the server runs fine for players
+on Xbox Live/cross-device matchmaking, but playit.gg (or any other
+UDP-port-forwarding tunnel) has nothing to actually forward — there's no
+traditional RakNet socket open at all, which is exactly the "switch your
+server to ranked [sic — RakNet]" message playit.gg's own setup flow
+surfaces.
+
+Confirm it took effect:
+```bash
+docker exec bedrock cat /data/server.properties | grep ^transport
+# should print: transport=raknet
+```
+
+With that in mind:
+
 - **Cloudflare Tunnel's TCP ingress** (what you'd use for the Java server
   or for a web panel's UI) does **not** apply to Bedrock traffic at all —
   Bedrock never sends TCP.
