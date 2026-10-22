@@ -38,6 +38,9 @@ services:
     container_name: filebrowser
     ports:
       - "8081:80"
+    environment:
+      FB_USERNAME: "${FILEBROWSER_USER}"
+      FB_PASSWORD: "${FILEBROWSER_PASSWORD}"
     volumes:
       - ../bedrock-data:/srv
       - filebrowser-db:/database

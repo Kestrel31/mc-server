@@ -3,6 +3,85 @@
 Day-2 tasks: changing versions, updating containers, backups, troubleshooting
 auth, and sidecar-specific notes.
 
+## Known issues already fixed in this repo's compose files
+
+A few sidecar config mistakes were made and corrected during initial setup
+— documenting them here since the symptoms are easy to hit again if you
+fork/modify this stack:
+
+1. **`mc-monitor` restart-looping** — the compose files originally used
+   `command: export --host=mc`, but the actual subcommand is
+   `export-for-prometheus` with a `-servers host:port` flag (space, not
+   `=`). Fixed to:
+   ```yaml
+   command: ["export-for-prometheus", "-servers", "mc:25565"]
+   ```
+   Diagnose this kind of thing yourself with:
+   ```bash
+   docker run --rm itzg/mc-monitor:latest --help
+   docker run --rm itzg/mc-monitor:latest help export-for-prometheus
+   ```
+
+2. **RCON Web Admin showing no servers / `127.0.0.1:25575 connection
+   failed`** — two stacked mistakes:
+   - `RWA_ADMIN` was being used to set the *username*, but it's actually a
+     `TRUE`/`FALSE` flag for "make this user an admin." The username var is
+     `RWA_USERNAME`.
+   - The RCON *connection* itself was never configured at all —
+     `RWA_ADMIN`/`RWA_PASSWORD` only configure the web panel's own login,
+     not the connection to `mc`. `RWA_ENV: "TRUE"` must be set to enable
+     env-var config, plus `RWA_RCON_HOST`, `RWA_RCON_PORT`, and
+     `RWA_RCON_PASSWORD` to actually point it at the Minecraft server.
+   - Separately: even with those set, the host must be the **Docker
+     service name** (`mc`), never `127.0.0.1` or `localhost` — those
+     resolve to the `rcon-web` container itself, not `mc`, since they're
+     separate containers. `mc-backup`'s `RCON_HOST: mc` already did this
+     correctly; `rcon-web` didn't.
+
+   Current (correct) config:
+   ```yaml
+   environment:
+     RWA_ENV: "TRUE"
+     RWA_USERNAME: "${RCON_WEB_ADMIN_USER}"
+     RWA_PASSWORD: "${RCON_WEB_ADMIN_PASSWORD}"
+     RWA_ADMIN: "TRUE"
+     RWA_GAME: "minecraft"
+     RWA_SERVER_NAME: "mc"
+     RWA_RCON_HOST: "mc"
+     RWA_RCON_PORT: "25575"
+     RWA_RCON_PASSWORD: "${RCON_PASSWORD}"
+   ```
+   Full env var reference: the [rcon-web-admin README](https://github.com/rcon-web-admin/rcon-web-admin#environment-variables)
+   (this is the actively maintained fork; the original by @brainfoolong is
+   no longer maintained).
+
+3. **FileBrowser credentials** — never explicitly set, so it was silently
+   falling back to its built-in default (`admin` / `admin`). Now set
+   explicitly via `.env`:
+   ```yaml
+   environment:
+     FB_USERNAME: "${FILEBROWSER_USER}"
+     FB_PASSWORD: "${FILEBROWSER_PASSWORD}"
+   ```
+   **⚠️ Also: `filebrowser/filebrowser` is archived/unmaintained** (no
+   further releases or security fixes as of its archive date). This repo
+   still references it since it's a drop-in simple option, but consider
+   swapping to the actively maintained fork
+   [`gtsteffaniak/filebrowser`](https://github.com/gtsteffaniak/filebrowser)
+   (same core functionality, different image name) if you want ongoing
+   security patches.
+
+4. **Running `docker compose` from inside `compose/` instead of the repo
+   root** — since the compose files use relative volume paths like
+   `../data`, and `.env` lives at the repo root, always run commands from
+   the repo root with `-f compose/<file>.yml`, not `cd compose && ...`.
+   Confirm `.env` is actually being picked up with:
+   ```bash
+   docker compose -f compose/docker-compose.java.yml config | grep RCON_PASSWORD
+   ```
+   If this prints the literal string `${RCON_PASSWORD}` instead of your
+   real value, `.env` isn't being found.
+
 All commands below assume you're running one of the four files under
 `compose/` with `-f`, e.g.:
 ```bash

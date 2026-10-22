@@ -22,10 +22,10 @@ capabilities a panel like Crafty would otherwise provide:
 | Capability | Tool |
 |---|---|
 | Server itself | [`itzg/minecraft-server`](https://github.com/itzg/docker-minecraft-server) (Java) or [`itzg/minecraft-bedrock-server`](https://github.com/itzg/docker-minecraft-bedrock-server) |
-| Web console | [`itzg/rcon`](https://github.com/itzg/docker-rcon) (RCON Web Admin) — Java only, see note below |
-| Scheduled backups | [`itzg/mc-backup`](https://github.com/itzg/docker-mc-backup) — Java only, see note below |
-| Web file manager | [`filebrowser/filebrowser`](https://github.com/filebrowser/filebrowser) |
-| Player count / status metrics | [`itzg/mc-monitor`](https://github.com/itzg/mc-monitor) — Java only, see note below |
+| Web console | [`itzg/rcon`](https://github.com/itzg/docker-rcon) (RCON Web Admin) — Java only, requires RCON (see note below) |
+| Scheduled backups | [`itzg/mc-backup`](https://github.com/itzg/docker-mc-backup) — Java only, requires RCON (see note below) |
+| Web file manager | [`filebrowser/filebrowser`](https://github.com/filebrowser/filebrowser) — ⚠️ archived/unmaintained, see note below |
+| Player count / status metrics | [`itzg/mc-monitor`](https://github.com/itzg/mc-monitor) — works for both editions (status ping only, no RCON needed) |
 | Public access behind CGNAT | [`playit.gg`](https://playit.gg) agent |
 
 ## Four compose files, one per combination

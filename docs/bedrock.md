@@ -25,7 +25,11 @@ Practical implications:
   needed — there's no live world-save-lock requirement here the way
   `itzg/mc-backup` handles for Java), or adapt a simple scheduled `tar`
   job yourself.
-- **Monitoring**: no Prometheus metrics sidecar for Bedrock in this repo.
+- **Monitoring**: `mc-monitor` *does* work for Bedrock (it just does a
+  status ping, no RCON needed) via its `status-bedrock` subcommand /
+  `-bedrock-servers` flag on `export-for-prometheus` — it isn't wired up
+  in `compose/docker-compose.bedrock.yml` by default, but could be added
+  the same way it's used in the Java files (see `docs/operations.md`).
 
 ## Compose service (as used in `compose/docker-compose.bedrock.yml`)
 
