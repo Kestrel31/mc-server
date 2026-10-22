@@ -1,0 +1,85 @@
+version: "3"
+
+# -----------------------------------------------------------------------------
+# Java Edition — LOCAL ONLY (no playit.gg)
+#
+# Use this for local/LAN testing, or if you don't need public/remote access.
+# Core server + sidecars (web console, backups, file browser, monitoring).
+# See /docs/operations.md and /docs/decisions.md for rationale.
+# -----------------------------------------------------------------------------
+
+services:
+  mc:
+    image: itzg/minecraft-server
+    container_name: mc
+    ports:
+      - "25565:25565"
+    environment:
+      EULA: "TRUE"
+      TYPE: "PAPER"
+      VERSION: "LATEST"
+      MEMORY: "4G"
+      MOTD: "My Dockerized Server"
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: "${RCON_PASSWORD}"
+      RCON_PORT: "25575"
+      ONLINE_MODE: "TRUE" # set to FALSE only for local/offline-account testing
+    volumes:
+      - ../data:/data
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+  rcon-web:
+    image: itzg/rcon
+    container_name: rcon-web
+    ports:
+      - "4326:4326" # web UI
+      - "4327:4327" # websocket
+    environment:
+      RWA_ADMIN: "${RCON_WEB_ADMIN_USER}"
+      RWA_PASSWORD: "${RCON_WEB_ADMIN_PASSWORD}"
+    volumes:
+      - rcon-web-data:/opt/rcon-web-admin/db
+    restart: unless-stopped
+    depends_on:
+      - mc
+
+  mc-backup:
+    image: itzg/mc-backup
+    container_name: mc-backup
+    environment:
+      BACKUP_INTERVAL: "6h"
+      RCON_HOST: mc
+      RCON_PASSWORD: "${RCON_PASSWORD}"
+      PRUNE_BACKUPS_DAYS: "7"
+    volumes:
+      - ../data:/data:ro
+      - ../backups:/backups
+    restart: unless-stopped
+    depends_on:
+      - mc
+
+  filebrowser:
+    image: filebrowser/filebrowser
+    container_name: filebrowser
+    ports:
+      - "8081:80"
+    volumes:
+      - ../data:/srv
+      - filebrowser-db:/database
+    restart: unless-stopped
+
+  mc-monitor:
+    image: itzg/mc-monitor
+    container_name: mc-monitor
+    command: export --host=mc
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    depends_on:
+      - mc
+
+volumes:
+  rcon-web-data:
+  filebrowser-db:

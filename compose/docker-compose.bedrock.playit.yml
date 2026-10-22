@@ -1,0 +1,61 @@
+version: "3"
+
+# -----------------------------------------------------------------------------
+# Bedrock Edition — WITH playit.gg (public access, works behind CGNAT)
+#
+# Bedrock is UDP-only at the protocol level (RakNet) — this is exactly the
+# scenario playit.gg is built for, and is required (not just convenient)
+# under CGNAT since port forwarding isn't possible at all. See
+# /docs/networking.md and /docs/bedrock.md for details.
+# -----------------------------------------------------------------------------
+
+services:
+  bedrock:
+    image: itzg/minecraft-bedrock-server
+    container_name: bedrock
+    ports:
+      - "19132:19132/udp"
+    environment:
+      EULA: "TRUE"
+      VERSION: "LATEST"
+      GAMEMODE: "survival"
+      DIFFICULTY: "normal"
+      SERVER_NAME: "My Bedrock Server"
+      LEVEL_NAME: "MyWorld"
+      MAX_PLAYERS: "10"
+      ALLOW_CHEATS: "false"
+      DEFAULT_PLAYER_PERMISSION_LEVEL: "member"
+      VIEW_DISTANCE: "32"
+      ONLINE_MODE: "true"
+    volumes:
+      - ../bedrock-data:/data
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+  filebrowser:
+    image: filebrowser/filebrowser
+    container_name: filebrowser
+    ports:
+      - "8081:80"
+    volumes:
+      - ../bedrock-data:/srv
+      - filebrowser-db:/database
+    restart: unless-stopped
+
+  # Public tunnel agent — outbound-only, works through CGNAT. This is the
+  # only viable free option for public Bedrock UDP traffic (Cloudflare
+  # Tunnel's UDP support is WARP-client-only; Cloudflare Spectrum supports
+  # it but is a paid add-on). Set the tunnel's local address in the
+  # playit.gg dashboard to `bedrock:19132`.
+  playit:
+    image: ghcr.io/playit-cloud/playit-agent:1.0
+    container_name: playit
+    environment:
+      - SECRET_KEY=${PLAYIT_SECRET_KEY}
+    depends_on:
+      - bedrock
+    restart: unless-stopped
+
+volumes:
+  filebrowser-db:

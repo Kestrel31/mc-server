@@ -1,18 +1,11 @@
 version: "3"
 
 # -----------------------------------------------------------------------------
-# Minecraft Server Stack
+# Java Edition — WITH playit.gg (public access, works behind CGNAT)
 #
-# Core server: itzg/minecraft-server (Java) — swap to itzg/minecraft-bedrock-server
-# if you want Bedrock instead (see docs/bedrock.md). Kept as the single source
-# of truth / process owner (no Crafty — see docs/decisions.md for why).
-#
-# Sidecars add the capabilities Crafty would have given us, a la carte:
-#   - rcon-web   -> web console (replaces `docker exec -it mc rcon-cli`)
-#   - mc-backup  -> scheduled, pruned backups
-#   - filebrowser-> web file manager + basic multi-user access
-#   - mc-monitor -> player count / status metrics (Prometheus-compatible)
-#   - playit     -> public tunnel (works behind CGNAT, no port forwarding)
+# Same as docker-compose.java.yml, plus the playit.gg tunnel agent so the
+# server is reachable publicly without port forwarding or a static IP.
+# See /docs/networking.md for why playit.gg, and how to configure the tunnel.
 # -----------------------------------------------------------------------------
 
 services:
@@ -30,9 +23,9 @@ services:
       ENABLE_RCON: "true"
       RCON_PASSWORD: "${RCON_PASSWORD}"
       RCON_PORT: "25575"
-      ONLINE_MODE: "TRUE" # set to FALSE only for local/offline-account testing
+      ONLINE_MODE: "TRUE"
     volumes:
-      - ./data:/data
+      - ../data:/data
     restart: unless-stopped
     tty: true
     stdin_open: true
@@ -41,8 +34,8 @@ services:
     image: itzg/rcon
     container_name: rcon-web
     ports:
-      - "4326:4326" # web UI
-      - "4327:4327" # websocket
+      - "4326:4326"
+      - "4327:4327"
     environment:
       RWA_ADMIN: "${RCON_WEB_ADMIN_USER}"
       RWA_PASSWORD: "${RCON_WEB_ADMIN_PASSWORD}"
@@ -61,8 +54,8 @@ services:
       RCON_PASSWORD: "${RCON_PASSWORD}"
       PRUNE_BACKUPS_DAYS: "7"
     volumes:
-      - ./data:/data:ro
-      - ./backups:/backups
+      - ../data:/data:ro
+      - ../backups:/backups
     restart: unless-stopped
     depends_on:
       - mc
@@ -73,7 +66,7 @@ services:
     ports:
       - "8081:80"
     volumes:
-      - ./data:/srv
+      - ../data:/srv
       - filebrowser-db:/database
     restart: unless-stopped
 
@@ -87,16 +80,18 @@ services:
     depends_on:
       - mc
 
-  # Public tunnel — works through CGNAT, no port forwarding needed.
-  # Comment out until you're done testing locally.
-  # playit:
-  #   image: ghcr.io/playit-cloud/playit-agent:1.0
-  #   container_name: playit
-  #   environment:
-  #     - SECRET_KEY=${PLAYIT_SECRET_KEY}
-  #   depends_on:
-  #     - mc
-  #   restart: unless-stopped
+  # Public tunnel agent — outbound-only, works through CGNAT, no port
+  # forwarding needed. Set the tunnel's local address in the playit.gg
+  # dashboard to `mc:25565` (Docker's internal DNS resolves the service
+  # name since this container shares the same Compose network as `mc`).
+  playit:
+    image: ghcr.io/playit-cloud/playit-agent:1.0
+    container_name: playit
+    environment:
+      - SECRET_KEY=${PLAYIT_SECRET_KEY}
+    depends_on:
+      - mc
+    restart: unless-stopped
 
 volumes:
   rcon-web-data:

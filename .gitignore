@@ -5,6 +5,9 @@
 data/
 bedrock-data/
 backups/
+!data/.gitkeep
+!bedrock-data/.gitkeep
+!backups/.gitkeep
 
 # OS junk
 .DS_Store

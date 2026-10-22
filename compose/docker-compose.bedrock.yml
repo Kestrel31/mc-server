@@ -1,0 +1,45 @@
+version: "3"
+
+# -----------------------------------------------------------------------------
+# Bedrock Edition — LOCAL ONLY (no playit.gg)
+#
+# Use this for local/LAN testing (e.g. from a phone on the same Wi-Fi).
+# Note: Bedrock is UDP (RakNet), not TCP — see /docs/bedrock.md.
+# -----------------------------------------------------------------------------
+
+services:
+  bedrock:
+    image: itzg/minecraft-bedrock-server
+    container_name: bedrock
+    ports:
+      - "19132:19132/udp"
+    environment:
+      EULA: "TRUE"
+      VERSION: "LATEST" # or a pinned version string, or "PREVIEW"
+      GAMEMODE: "survival"
+      DIFFICULTY: "normal"
+      SERVER_NAME: "My Bedrock Server"
+      LEVEL_NAME: "MyWorld"
+      MAX_PLAYERS: "10"
+      ALLOW_CHEATS: "false"
+      DEFAULT_PLAYER_PERMISSION_LEVEL: "member"
+      VIEW_DISTANCE: "32"
+      ONLINE_MODE: "true"
+    volumes:
+      - ../bedrock-data:/data
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+  filebrowser:
+    image: filebrowser/filebrowser
+    container_name: filebrowser
+    ports:
+      - "8081:80"
+    volumes:
+      - ../bedrock-data:/srv
+      - filebrowser-db:/database
+    restart: unless-stopped
+
+volumes:
+  filebrowser-db:
