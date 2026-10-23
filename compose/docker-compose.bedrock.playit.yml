@@ -30,7 +30,7 @@ services:
       VERSION: "LATEST"
       GAMEMODE: "survival"
       DIFFICULTY: "normal"
-      SERVER_NAME: "My Bedrock Server"
+      SERVER_NAME: "Bedrock Server"
       LEVEL_NAME: "MyWorld"
       MAX_PLAYERS: "10"
       ALLOW_CHEATS: "false"

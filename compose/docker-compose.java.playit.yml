@@ -23,8 +23,8 @@ services:
       EULA: "TRUE"
       TYPE: "PAPER"
       VERSION: "LATEST"
-      MEMORY: "4G"
-      MOTD: "My Dockerized Server"
+      MEMORY: "8G"
+      MOTD: "Java Server"
       ONLINE_MODE: "TRUE"
     volumes:
       - ../data:/data
